@@ -1,0 +1,157 @@
+# ---
+#  Configuration for the multi-band stacked ensemble.
+#
+#  Single source of truth for paths, splits, horizons and model parameters.
+#  Modules read this file through utils/config.py; no path is hardcoded.
+# ---
+
+project:
+  name: "solar-irradiance-forecasting"
+  version: "1.0.0"
+  description: >
+    Multi-band heterogeneous stacked ensemble for multi-horizon
+    solar irradiance forecasting
+
+# -- All paths are RELATIVE to project root ---
+paths:
+  data_raw: "data/raw"
+  data_processed: "data/processed"
+  data_external: "data/external"
+  outputs_models: "outputs/models"
+  outputs_plots: "outputs/plots"
+  outputs_reports: "outputs/reports"
+  outputs_artifacts: "outputs/artifacts"  # JSON metric manifests per stage
+
+# -- Random seeds (deterministic reproducibility) ---
+seeds:
+  global: 42
+  numpy: 42
+  tensorflow: 42
+
+# -- Dataset configuration ---
+dataset:
+  primary: "chinese_stations"  # 8 Chinese solar stations
+  validation: "dkasc"          # DKASC Plant 1 (India)
+
+  chinese_stations:
+    file_pattern: "Solar station site *.xlsx"
+    latitude_deg: 35.0           # Central China default
+    time_col: "Time(year-month-day h:m:s)"
+    irr_col_keywords: ["total solar"]
+    temp_col_keywords: ["air temp"]
+    power_col_keywords: ["power"]
+    sentinels: [-99, -9999, "null", "NULL", "--"]
+    irr_unit: "W/m2"            # Will be converted to kW/m^2
+    power_unit: "MW"            # Will be converted to kW
+
+  dkasc:
+    generation_file: "Plant_1_Generation_Data.csv"
+    weather_file: "Plant_1_Weather_Sensor_Data.csv"
+
+# -- Temporal split ratios ---
+split:
+  train: 0.70
+  val: 0.15
+  test: 0.15
+  method: "chronological"      # No shuffle  -  strict temporal
+
+# -- Forecast horizons (in timesteps, 1 step = 15 min) ---
+forecasting:
+  horizons: [1, 4, 8, 16, 32, 96]  # 15m, 1h, 2h, 4h, 8h, 24h
+  history_window: 48               # 12 hours of lookback
+  target_variable: "IRRADIATION"   # Predict irradiance, NOT power
+
+# -- Stage 1: Decomposition ---
+stage1:
+  methods: ["wavelet", "emd", "vmd", "none"]
+  wavelet:
+    family: "db4"
+    levels: [3, 4]
+  emd:
+    max_imfs: 15
+    max_iterations: 500
+  vmd:
+    K_range: [3, 8]
+    alpha: 2000
+
+# -- Stage 2: Component-Specific Feature Engineering ---
+stage2:
+  rolling_windows_steps: [4, 12, 48]   # 1h, 3h, 12h
+  lag_steps: [1, 2, 3, 4, 8, 12]
+  solar_geometry: true
+  polynomial_features: true
+  cyclical_encoding: true
+
+# -- Stage 3: Component-Specific Model Training ---
+stage3:
+  component_model_map:
+    trend:    "ridge"      # Smooth, predictable -> simple model
+    daily:    "lstm"       # Cyclical temporal pattern -> recurrent model
+    hourly:   "xgboost"   # Feature-driven variation -> tree model
+    noise:    "persistence"  # Unpredictable -> naive baseline
+
+  # Fallback: if component classification fails
+  default_model: "xgboost"
+
+  xgboost:
+    n_estimators: 800
+    max_depth: 6
+    learning_rate: 0.03
+    subsample: 0.8
+    colsample_bytree: 0.8
+    reg_alpha: 0.1
+    reg_lambda: 1.0
+
+  ridge:
+    alpha: 1.0
+
+  lstm:
+    units: [128, 64]
+    dropout: 0.2
+    epochs: 100
+    batch_size: 64
+    patience: 10
+    sequence_length: 48
+    # Stage 3 stops rather than substituting XGBoost for the daily band. A
+    # substitution makes the daily and hourly bands fit the same model on the
+    # same features, so their predictions coincide and the per-band
+    # meta-coefficients carry no information.
+    require_tensorflow: true
+
+  # L2-regularised Ridge meta-learner, fitted on the validation
+  # predictions only, which keeps the base level and the meta level separate.
+  meta:
+    alpha: 1.0
+
+# -- Stage 4: Reconstruction & Correction ---
+stage4:
+  correction: "bias_only"    # Options: bias_only, ridge, none
+  bootstrap_n: 500
+
+# -- Stage 5: Multi-Station Evaluation ---
+stage5:
+  stations_primary: [4, 5, 6, 7]    # Clean stations for main results
+  stations_robustness: [1, 2, 3, 8]  # Noisy stations for robustness
+  cv_folds: 5
+  metrics: ["r2", "mae", "rmse", "mape", "fss"]
+
+# -- Stage 6: Ablation Study ---
+stage6:
+  ablations:
+    - name: "uniform_model"        # Replace component-specific with single model
+    - name: "no_decomposition"     # Skip decomposition entirely
+    - name: "decomp_level_sweep"   # Test L2, L3, L4
+    - name: "history_window_sweep" # Test 1h, 3h, 6h, 12h lookback
+
+# -- Cross-validation ---
+cv:
+  method: "time_series_split"
+  n_splits: 5
+
+# -- Plotting ---
+plotting:
+  dpi: 300
+  format: "png"
+  style: "default"
+  font_family: "serif"
+  font_size: 10

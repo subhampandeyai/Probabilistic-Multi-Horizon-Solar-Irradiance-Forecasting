@@ -1,0 +1,32 @@
+# Python 3.9. Versions are those used to produce the reported results.
+
+# Core scientific stack
+numpy==2.0.2
+pandas==2.3.3
+scipy==1.13.1
+scikit-learn==1.6.1
+
+# Signal decomposition
+PyWavelets==1.6.0
+EMD-signal==1.9.0
+vmdpy==0.2
+
+# Gradient boosting
+xgboost==2.1.4
+lightgbm==4.6.0
+
+# Sequence and attention models: the LSTM band and the Transformer,
+# Informer-lite and TimesNet-lite baselines. Stage 3 requires TensorFlow and
+# stops without it rather than substituting another learner for the daily band.
+# On Windows install the CPU wheel: pip install tensorflow-cpu==2.20.0
+tensorflow==2.20.0; sys_platform != "win32"
+tensorflow-cpu==2.20.0; sys_platform == "win32"
+keras==3.10.0
+
+# Data access
+openpyxl==3.1.5
+PyYAML==6.0.3
+kagglehub==0.3.13
+
+# Plotting
+matplotlib==3.9.4

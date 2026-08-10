@@ -1,0 +1,39 @@
+# Byte-compiled
+__pycache__/
+*.py[cod]
+*.so
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Environments
+.venv/
+venv/
+env/
+
+# Editor and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Data is fetched separately; see README
+data/raw/*
+data/processed/*
+data/external/*
+!data/**/.gitkeep
+
+# Generated outputs
+results/*
+figures/*
+outputs/
+logs/
+*.log
+!results/.gitkeep
+!figures/.gitkeep
+
+# Model artefacts
+*.h5
+*.keras
+*.pkl
+*.joblib
+*.ckpt
